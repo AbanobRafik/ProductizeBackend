@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import productRouter from "./Routes/routes.js";
 import authRouter from "./Routes/authRoutes.js";
 import express from "express";
+import serverless from "serverless-http";
 
 dotenv.config();
 
@@ -13,6 +14,10 @@ app.use(cors());
 app.use("/api", productRouter);
 app.use("/api/auth", authRouter);
 
+// dummy route
+app.get("/", (req, res) => res.send("Backend is running"));
+
+// cached MongoDB connection
 let cached = global.mongoose;
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
@@ -21,19 +26,17 @@ if (!cached) {
 async function connectDB() {
   if (cached.conn) return cached.conn;
   if (!cached.promise) {
-    cached.promise = mongoose.connect(process.env.MONGO_URL).then((m) => m);
+    cached.promise = mongoose.connect(process.env.MONGO_URI).then((m) => m);
   }
   cached.conn = await cached.promise;
   return cached.conn;
 }
 
-// ----- Vercel serverless export -----
-export default async function handler(req, res) {
-  try {
-    await connectDB();
-    return app(req, res); // let Express handle the request
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
-  }
-}
+// middleware connect DB
+app.use(async (req, res, next) => {
+  if (!cached.conn) await connectDB();
+  next();
+});
+
+// export Serverless handler
+export const handler = serverless(app);
