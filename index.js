@@ -6,23 +6,35 @@ import authRouter from "./Routes/authRoutes.js";
 import express from "express";
 import serverless from "serverless-http";
 
-const app = express();
 dotenv.config();
+
+const app = express();
 app.use(express.json());
 app.use(cors());
 app.use("/api", productRouter);
 app.use("/api/auth", authRouter);
-const port = process.env.PORT || 5000;
-const MongoUrl = process.env.Mong_Url;
 
-module.exports.handler = serverless(app);
+// Cached connection عشان Serverless Functions
+let cachedDb = null;
 
-mongoose
-  .connect(MongoUrl)
-  .then(() => {
-    console.log("connected to MongoDB");
-    app.listen(port, () => console.log(`Server is running on port ${port}`));
-  })
-  .catch((err) => {
-    console.log(err);
-  });
+async function connectToDatabase() {
+  if (cachedDb) return cachedDb;
+  try {
+    const conn = await mongoose.connect(process.env.Mong_Url);
+    cachedDb = conn;
+    console.log("Connected to MongoDB");
+    return cachedDb;
+  } catch (err) {
+    console.error("MongoDB connection error:", err);
+    throw err;
+  }
+}
+
+// connect to DB عند كل request
+app.use(async (req, res, next) => {
+  if (!cachedDb) await connectToDatabase();
+  next();
+});
+
+// Export Serverless Handler
+export const handler = serverless(app);
