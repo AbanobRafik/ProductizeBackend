@@ -10,15 +10,14 @@ import authRouter from "./Routes/authRoutes.js";
 dotenv.config();
 const app = express();
 
+// middlewares
 app.use(express.json());
 app.use(cors());
-app.use("/api", productRouter);
-app.use("/api/auth", authRouter);
 
 // dummy root route
 app.get("/", (req, res) => res.send("Backend is running"));
 
-// cached MongoDB connection
+// MongoDB cached connection
 let cached = global.mongoose;
 if (!cached) cached = global.mongoose = { conn: null, promise: null };
 
@@ -31,7 +30,7 @@ async function connectDB() {
   return cached.conn;
 }
 
-// middleware connect DB
+// middleware لتوصيل DB قبل أي route
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -41,6 +40,10 @@ app.use(async (req, res, next) => {
     res.status(500).json({ message: "Database connection error" });
   }
 });
+
+// Routes
+app.use("/api", productRouter);
+app.use("/api/auth", authRouter);
 
 // export Serverless handler
 export const handler = serverless(app);
